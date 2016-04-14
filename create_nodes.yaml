@@ -21,7 +21,7 @@
       exact_count: "{{ instances }}"
       count_tag:
         Name: "{{ cluster_id }}"
-      wait: no
+      wait: true
       volumes:
         - volume_size: 10
           device_type: gp2
@@ -70,4 +70,4 @@
       type: A
       ttl: 300
       value: "{{ item.1.public_ip }}"
-    with_indexed_items: "{{ ec2.instances }}"
+    with_indexed_items: "{{ ec2.tagged_instances }}"
