@@ -1,4 +1,4 @@
-# workshop-ansible
+# docker-workshop
 Ansible playbook to fire up my Docker workshop environment
 
 This tool will use Ansible to deploy the RHTPS Docker workshop environment.
