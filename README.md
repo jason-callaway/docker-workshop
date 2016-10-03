@@ -22,9 +22,9 @@ First, review the default settings in [vars.yaml](vars.yaml).
 ```
 $ ssh-agent bash
 $ ssh-add /path/to/instancekey.pem
-$ git clone https://github.com/jason-callaway/workshop-ansible.git
+$ git clone https://github.com/jason-callaway/docker-workshop.git
 $ cd workshop-ansible
-$ ./run.sh 25 # Create a cluster with 25 student instances
+$ ./run.sh 
 ```
 
-The instances will be assigned Route 53 A records in the format of ```student-n.workshop.rhtps.io```.
+The instances will be assigned Route 53 A records in the format of ```student-n.env_tag.rhtps.io```.

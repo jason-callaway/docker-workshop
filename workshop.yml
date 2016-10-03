@@ -103,7 +103,7 @@
     route53:
       command: create
       zone: "{{ r53_zone }}"
-      record: "student{{ item[0] }}.{{ cluster_id }}.{{ r53_zone }}"
+      record: "student-{{ item[0] }}.{{ cluster_id }}.{{ r53_zone }}"
       type: A
       ttl: 300
       value: "{{ item[1].public_ip }}"
