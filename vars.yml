@@ -1,14 +1,11 @@
-# vim: set ft=ansible:
 ---
 cluster_id: docker-workshop
 
-# Currently only supports us-east-1
+# Currently only supports us-east-1 because that's where the AMI lives
 ec2_region: us-east-1
-ec2_az: c
-ec2_image: ami-6ac0bc00
+ec2_az: a
+ec2_image: ami-67adee70
 ec2_keypair: rhtps-docker-workshop
 ec2_instance_type: t2.medium
 r53_zone: rhtps.io
-
-# Get lots of debug data
-debug_print: true
+count: 2

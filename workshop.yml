@@ -1,0 +1,127 @@
+---
+- hosts: localhost
+  connection: local
+  become: false
+  gather_facts: no
+  vars_files:
+  - vars.yml
+
+  tasks:
+  # Create the VPC
+  - name: Create ec2 public vpc
+    ec2_vpc:
+      state: present
+      dns_support: yes
+      dns_hostnames: yes
+      cidr_block: 192.168.0.0/16
+      resource_tags:
+        env: "{{ cluster_id }}"
+        Name: "{{ cluster_id }}-public"
+      region: "{{ ec2_region }}"
+      subnets:
+      - cidr: 192.168.0.0/24
+        az: "{{ ec2_region }}{{ ec2_az }}"
+        resource_tags:
+          env: "{{ cluster_id }}"
+          Name: "{{ cluster_id }}-public-{{ ec2_az }}"
+          parent_vpc: "{{ cluster_id }}-public"
+      internet_gateway: yes
+      wait: yes
+    register: public_vpc
+
+  - name: Set up public subnet route tables
+    ec2_vpc_route_table:
+      vpc_id: "{{ public_vpc.vpc_id }}"
+      region: "{{ ec2_region }}"
+      tags:
+        Name: public
+        env: "{{ cluster_id }}"
+      subnets:
+        - "{{ public_vpc.subnets[0].id }}"
+      routes:
+        - dest: 0.0.0.0/0
+          gateway_id: "{{ public_vpc.igw_id }}"
+    register: public_route_table
+  
+  # Set up security groups for the VPC
+  - name: Set security group rules
+    ec2_group:
+      name: "{{ cluster_id }}-sg"
+      description: "{{ cluster_id }} security group"
+      region: "{{ ec2_region }}"
+      vpc_id: "{{ public_vpc.vpc_id }}"
+      rules: 
+      - proto: tcp
+        from_port: 22
+        to_port: 22
+        cidr_ip: 0.0.0.0/0
+      rules_egress:
+      - proto: all
+        cidr_ip: 0.0.0.0/0
+    register: group
+  
+  # Create nodes
+  - name: Create ec2 workshop instances
+    ec2:
+      image: "{{ ec2_image }}"
+      region: "{{ ec2_region }}"
+      key_name: "{{ ec2_keypair }}"
+      instance_type: "{{ ec2_instance_type }}"
+      group_id: "{{ group.group_id }}"
+      instance_tags:
+        Name: "{{ cluster_id }}_student-instance"
+        instance_role: "{{ cluster_id }}_student-instance"
+        env: "{{ cluster_id }}"
+      exact_count: "{{ count }}"
+      count_tag:
+        Name: "{{ cluster_id }}_student-instance"
+        instance_role: "{{ cluster_id }}_student-instance"
+        env: "{{ cluster_id }}"
+      wait: yes
+      volumes:
+        - volume_size: 10
+          device_type: gp2
+          device_name: /dev/sda1
+          delete_on_termination: true
+        - volume_size: 10
+          device_type: gp2
+          device_name: /dev/sdb
+          delete_on_termination: true
+      assign_public_ip: yes
+      vpc_subnet_id: "{{ public_vpc.subnets[0].id }}"
+    register: ec2
+ 
+  - set_fact:
+      ec2_instances:  "{{ ec2.instances }}"
+    when: ec2.instances is defined and ec2.instances
+  
+  - set_fact:
+      ec2_instances: "{{ ec2.tagged_instances }}"
+    when: ec2.tagged_instances is defined and ec2.tagged_instances
+
+  - name: Create Route 53 entries
+    route53:
+      command: create
+      zone: "{{ r53_zone }}"
+      record: "student{{ item[0] }}.{{ cluster_id }}.{{ r53_zone }}"
+      type: A
+      ttl: 300
+      value: "{{ item[1].public_ip }}"
+      overwrite: yes
+      wait: yes
+    with_indexed_items: "{{ ec2_instances }}"
+
+  - name: Wait for SSH to come up on ec2 instances
+    wait_for: host={{ item.public_dns_name }} port=22 delay=0 timeout=600 state=started
+    with_items:
+      - "{{ ec2_instances }}"
+  
+  - name: Wait for successful SSH
+    command: "ssh -o StrictHostKeyChecking=no -o PasswordAuthentication=no -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null ec2-user@{{ item.public_dns_name }} echo host is up"
+    with_items:
+      - "{{ ec2_instances }}"
+    register: result
+    until: result.rc == 0
+    retries: 60
+    delay: 60
+
